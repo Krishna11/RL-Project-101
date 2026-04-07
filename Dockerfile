@@ -24,6 +24,9 @@ RUN pip install --no-cache-dir \
 # Copy full project
 COPY . .
 
+# Install the coolpilot package itself
+RUN pip install --no-cache-dir .
+
 # Switch to non-root
 USER appuser
 
