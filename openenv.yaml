@@ -1,0 +1,46 @@
+# OpenEnv Manifest — CoolPilot Data Center Cooling RL Environment
+# Spec: https://github.com/meta-pytorch/OpenEnv
+
+spec_version: 1
+name: coolpilot
+type: space
+runtime: fastapi
+app: server.app:app
+port: 7860
+
+# ── Environment Metadata ────────────────────────────────
+metadata:
+  description: >
+    Data Center Cooling RL Environment — control HVAC/CRAC units to minimise
+    PUE while keeping server rack zones within safe temperature bounds.
+  author: Team CoolPilot
+  version: "1.0.0"
+  license: BSD-3-Clause
+  tags:
+    - reinforcement-learning
+    - data-center
+    - energy-efficiency
+    - thermal-simulation
+
+# ── Task Catalogue ──────────────────────────────────────
+tasks:
+  - id: task_1_single_zone
+    name: "Single Zone Steady State"
+    difficulty: easy
+    description: >
+      1 zone, constant 10 kW IT load, 1 CRAC unit.
+      Goal: keep temperature in [18, 27]°C while minimising PUE.
+
+  - id: task_2_variable_workload
+    name: "Variable Workload"
+    difficulty: medium
+    description: >
+      4 zones, sinusoidal IT loads, 2 CRAC units, variable ambient temp.
+      Goal: adapt cooling to shifting workloads.
+
+  - id: task_3_random_events
+    name: "Random Events & TOU Pricing"
+    difficulty: hard
+    description: >
+      8 zones, 3 CRACs, random IT spikes, CRAC failures, time-of-use
+      energy pricing.  Goal: maintain safety under uncertainty.

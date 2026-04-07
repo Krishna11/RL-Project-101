@@ -1,0 +1,85 @@
+# Copyright (c) Team CoolPilot.
+# All rights reserved.
+#
+# Data Center Cooling RL Environment for Meta × SST OpenEnv Hackathon 2026.
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-coolpilot"
+version = "1.0.0"
+description = "Data Center Cooling RL Environment — control HVAC/CRAC to minimise PUE"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "BSD-3-Clause"}
+authors = [
+    {name = "Team CoolPilot"},
+]
+keywords = [
+    "reinforcement-learning",
+    "data-center",
+    "cooling",
+    "openenv",
+    "gymnasium",
+]
+
+dependencies = [
+    # ── Core OpenEnv (server + client plumbing) ──
+    "openenv-core[core]>=0.2.2",
+
+    # ── Server Runtime ──
+    "fastapi>=0.115.0",
+    "pydantic>=2.0.0",
+    "uvicorn[standard]>=0.30.0",
+
+    # ── Networking / Client ──
+    "httpx>=0.27.0",
+    "websockets>=15.0.1",
+    "requests>=2.31.0",
+
+    # ── Inference (LLM agent) ──
+    "openai>=1.50.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.14.0",
+]
+
+[project.scripts]
+# Server entry point — enables `uv run --project . server`
+server = "coolpilot.server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = [
+    "coolpilot",
+    "coolpilot.server",
+    "coolpilot.thermal",
+    "coolpilot.tasks",
+]
+
+[tool.setuptools.package-dir]
+"coolpilot" = "."
+"coolpilot.server" = "server"
+"coolpilot.thermal" = "thermal"
+"coolpilot.tasks" = "tasks"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with -m 'not slow')",
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
