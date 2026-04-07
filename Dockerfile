@@ -12,6 +12,7 @@ ENV PYTHONUNBUFFERED=1
 # Install deps first (layer caching)
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir \
+    "openenv-core[core]>=0.2.2" \
     "fastapi>=0.115.0" \
     "pydantic>=2.0.0" \
     "uvicorn[standard]>=0.30.0" \
