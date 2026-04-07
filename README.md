@@ -1,3 +1,14 @@
+---
+title: Coolpilot
+emoji: 🌖
+colorFrom: red
+colorTo: gray
+sdk: docker
+pinned: false
+license: bsd-3-clause
+app_port: 7860
+---
+
 # CoolPilot 🧊 — Data Center Cooling RL Environment
 
 CoolPilot is an OpenEnv-compliant Reinforcement Learning environment where an agent learns to optimize datacenter HVAC/CRAC (Computer Room Air Conditioning) units.
