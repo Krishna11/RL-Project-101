@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir \
 
 # Copy full project
 COPY . .
+RUN chmod +x run.sh
 
 # Install the coolpilot package itself
 RUN pip install --no-cache-dir .
@@ -31,9 +32,7 @@ RUN pip install --no-cache-dir .
 USER appuser
 
 
-COPY entrypoint.sh ./
-RUN chmod +x entrypoint.sh
-
-USER appuser
 EXPOSE 7860
-CMD ["./entrypoint.sh"]
+
+# Run the script that starts both server and inference agent
+CMD ["./run.sh"]
