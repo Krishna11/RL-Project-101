@@ -236,8 +236,8 @@ async def run_episode(task_id: str) -> dict:
         os.environ["API_KEY"] = os.environ["HF_TOKEN"]
         
     llm_client = OpenAI(
-        base_url=os.environ["API_BASE_URL"],
-        api_key=os.environ["API_KEY"]
+        base_url=os.environ.get("API_BASE_URL"),
+        api_key=os.environ.get("API_KEY")
     )
 
     # ── Connect to environment ──────────────────────────
