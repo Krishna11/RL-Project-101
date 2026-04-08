@@ -32,11 +32,16 @@ from coolpilot import CoolPilotEnv, Action, CRACAction
 
 # ── Config ──────────────────────────────────────────────
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
-HF_TOKEN = os.getenv("HF_TOKEN")
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
+API_BASE_URL = os.environ.get("API_BASE_URL")
+MODEL_NAME = os.environ.get("MODEL_NAME")
+API_KEY = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN")
+HF_TOKEN = os.environ.get("HF_TOKEN")
+if not API_BASE_URL:
+    raise ValueError("API_BASE_URL environment variable is required")
+if not MODEL_NAME:
+    raise ValueError("MODEL_NAME environment variable is required")
+if not API_KEY:
+    raise ValueError("API_KEY or HF_TOKEN environment variable is required")
 
 # Optional - if you use from_docker_image():
 LOCAL_IMAGE_NAME = os.environ.get("LOCAL_IMAGE_NAME")
@@ -49,7 +54,7 @@ MAX_STEPS = 200          # safety cap
 TIME_BUDGET_S = 900.0    # 15 min
 TEMPERATURE = 0.2
 MAX_TOKENS = 512
-LLM_RETRIES = 3          # retry LLM calls on failure
+LLM_RETRIES = 5          # retry LLM calls on failure
 
 # Task-specific max steps for score normalization
 TASK_MAX_STEPS = {
@@ -103,10 +108,15 @@ def log_step(
 def log_end(
     success: bool,
     steps: int,
+    score: float,
     rewards: List[float],
 ) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} "
+        f"score={score:.3f} rewards={rewards_str}",
+        flush=True,
+    )
 
 
 # ─────────────────────────────────────────────────────────
@@ -218,7 +228,7 @@ def call_llm(llm_client: OpenAI, messages: list, model_name: str) -> str:
             last_exc = exc
             print(f"[WARN] LLM attempt {attempt}/{LLM_RETRIES} failed: {exc}", file=sys.stderr, flush=True)
             if attempt < LLM_RETRIES:
-                time.sleep(2 * attempt)  # exponential backoff
+                time.sleep(2 ** (attempt - 1))  # exponential backoff
     raise last_exc  # all retries exhausted
 
 
@@ -250,14 +260,20 @@ async def run_episode(task_id: str) -> dict:
 
     llm_client = OpenAI(
         base_url=API_BASE_URL,
-        api_key=HF_TOKEN
+        api_key=API_KEY,
     )
 
     print(f"[DEBUG] Started inference worker for task {task_id}. LLM Client configured against base_url={API_BASE_URL}", file=sys.stderr, flush=True)
 
     if "localhost" in API_BASE_URL or "127.0.0.1" in API_BASE_URL:
-        print("\n[FATAL] Localhost API_BASE_URL detected! The hackathon grader will record 0 proxy calls.", file=sys.stderr)
-        print("Please configure API_BASE_URL, HF_TOKEN, and MODEL_NAME inside your Hugging Face Space settings!", file=sys.stderr)
+        print(
+            "\n[FATAL] Localhost API_BASE_URL detected! The hackathon grader will record 0 proxy calls.",
+            file=sys.stderr,
+        )
+        print(
+            "Please configure API_BASE_URL, API_KEY/HF_TOKEN, and MODEL_NAME inside your Hugging Face Space settings!",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # ── Probe Call (Guarantee at least one proxy request) ──
