@@ -9,7 +9,7 @@ SERVER_PID=$!
 sleep 5
 
 # Run the inference agent (makes LLM calls through the hackathon proxy)
-python agent.py
+python app.py
 
 # Keep server alive after agent finishes
 wait $SERVER_PID
