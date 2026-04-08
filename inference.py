@@ -231,6 +231,10 @@ async def run_episode(task_id: str) -> dict:
     Returns a result dict with score in [0, 1].
     """
     start_time = time.monotonic()
+    
+    if "API_KEY" not in os.environ and "HF_TOKEN" in os.environ:
+        os.environ["API_KEY"] = os.environ["HF_TOKEN"]
+        
     llm_client = OpenAI(
         base_url=os.environ["API_BASE_URL"],
         api_key=os.environ["API_KEY"]
@@ -316,7 +320,11 @@ async def run_episode(task_id: str) -> dict:
             success = score >= 0.5
 
     except Exception as exc:
+        print(f"\\n[FATAL ERROR] run_episode failed: {exc}\\n", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         last_error = str(exc)
+        raise
     finally:
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
