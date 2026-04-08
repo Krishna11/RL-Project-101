@@ -104,8 +104,8 @@ class TestCracPowerDraw:
 
 class TestComputeEffectiveH:
     def test_full_controls(self):
-        h = compute_effective_h(1.0, 1.0, base_h=150)
-        assert h == 150.0
+        h = compute_effective_h(1.0, 1.0, base_h=1500)
+        assert h == 1500.0
 
     def test_zero_controls(self):
         assert compute_effective_h(0.0, 0.0) == 0.0

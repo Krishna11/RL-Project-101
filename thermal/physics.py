@@ -130,7 +130,7 @@ def crac_power_draw(
 def compute_effective_h(
     fan_speed_pct: float,
     chilled_water_flow: float,
-    base_h: float = 150.0,   # W/°C at 100 % fan + 100 % water
+    base_h: float = 1500.0,   # W/°C at 100 % fan + 100 % water
 ) -> float:
     """
     Effective heat-transfer coefficient as function of agent controls.
