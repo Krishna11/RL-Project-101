@@ -237,7 +237,7 @@ async def run_episode(task_id: str) -> dict:
         
     llm_client = OpenAI(
         base_url=os.environ.get("API_BASE_URL"),
-        api_key=os.environ.get("API_KEY")
+        api_key=os.environ.get("API_KEY", "sk-no-key")
     )
 
     # ── Connect to environment ──────────────────────────
