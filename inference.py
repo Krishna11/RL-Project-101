@@ -8,9 +8,9 @@ MANDATORY STDOUT FORMAT:
     [END]   success=<true|false> steps=<n> score=<0.00> rewards=<r1,r2,...,rn>
 
 Environment Variables:
-    API_BASE_URL   LLM endpoint (default: https://router.huggingface.co/v1)
+    API_BASE_URL   LLM endpoint (injected by hackathon evaluator)
+    API_KEY        API key (injected by hackathon evaluator)
     MODEL_NAME     Model identifier (default: Qwen/Qwen2.5-72B-Instruct)
-    HF_TOKEN       Hugging Face / API key
     IMAGE_NAME     Docker image name for from_docker_image() (optional)
     TASK_ID        Task to run (default: task_1_single_zone)
 """
@@ -38,6 +38,7 @@ if "API_KEY" not in os.environ:
     os.environ["API_KEY"] = os.environ.get("HF_TOKEN", "dummy")
 
 MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+
 # Optional - if you use from_docker_image():
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
@@ -49,6 +50,7 @@ MAX_STEPS = 200          # safety cap
 TIME_BUDGET_S = 900.0    # 15 min
 TEMPERATURE = 0.2
 MAX_TOKENS = 512
+LLM_RETRIES = 3          # retry LLM calls on failure
 
 # Task-specific max steps for score normalization
 TASK_MAX_STEPS = {
@@ -183,39 +185,6 @@ def format_observation(obs: dict) -> str:
     return "\n".join(lines)
 
 
-# ─────────────────────────────────────────────────────────
-# PID fallback controller
-# ─────────────────────────────────────────────────────────
-
-def pid_action(obs: dict) -> dict:
-    """Proportional controller targeting 22.5°C — always works."""
-    zones = obs.get("zones", [])
-    if not zones:
-        return {
-            "cracs": [
-                {"fan_speed": 0.5, "chilled_water_flow": 0.5, "supply_temp": 15.0}
-            ]
-        }
-
-    avg_temp = sum(z.get("temperature", 22.0) for z in zones) / len(zones)
-    error = avg_temp - 22.5
-
-    fan = max(0.1, min(1.0, 0.5 + error * 0.10))
-    water = max(0.1, min(1.0, 0.5 + error * 0.08))
-    supply = max(10.0, min(20.0, 15.0 - error * 0.50))
-
-    return {
-        "cracs": [
-            {
-                "fan_speed": round(fan, 2),
-                "chilled_water_flow": round(water, 2),
-                "supply_temp": round(supply, 1),
-            }
-            for _ in obs.get("cracs", [{"crac_id": 0}])
-        ]
-    }
-
-
 def action_to_short_str(action: dict) -> str:
     """Compact string representation of an action for [STEP] logging."""
     cracs = action.get("cracs", [])
@@ -230,12 +199,39 @@ def action_to_short_str(action: dict) -> str:
 
 
 # ─────────────────────────────────────────────────────────
+# LLM call with retries (NO PID fallback)
+# ─────────────────────────────────────────────────────────
+
+def call_llm(llm_client: OpenAI, messages: list) -> str:
+    """Call the LLM with retries. Raises on total failure."""
+    last_exc = None
+    for attempt in range(1, LLM_RETRIES + 1):
+        try:
+            completion = llm_client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=messages,
+                temperature=TEMPERATURE,
+                max_tokens=MAX_TOKENS,
+                stream=False,
+            )
+            reply = (completion.choices[0].message.content or "").strip()
+            return reply
+        except Exception as exc:
+            last_exc = exc
+            print(f"[WARN] LLM attempt {attempt}/{LLM_RETRIES} failed: {exc}", flush=True)
+            if attempt < LLM_RETRIES:
+                time.sleep(2 * attempt)  # exponential backoff
+    raise last_exc  # all retries exhausted
+
+
+# ─────────────────────────────────────────────────────────
 # Main async inference loop
 # ─────────────────────────────────────────────────────────
 
 async def run_episode(task_id: str) -> dict:
     """
     Run one full episode on the given task.
+    ALL actions come from the LLM — no PID fallback.
 
     Returns a result dict with score in [0, 1].
     """
@@ -265,59 +261,36 @@ async def run_episode(task_id: str) -> dict:
             result = await env.reset(task_id=task_id)
             obs_dict = result.observation.model_dump() if hasattr(result.observation, 'model_dump') else {}
             messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-            use_pid = False
 
             # ── Step loop ───────────────────────────────
             for step in range(1, MAX_STEPS + 1):
                 if result.done:
                     break
 
-                elapsed = time.monotonic() - start_time
-                if elapsed > TIME_BUDGET_S * 0.85 and not use_pid:
-                    use_pid = True
-
-                # ── Get action ──────────────────────────
-                action_dict: Optional[dict] = None
                 last_error = None
 
-                if not use_pid:
-                    obs_text = format_observation(obs_dict)
-                    messages.append({
-                        "role": "user",
-                        "content": f"Current state:\n{obs_text}\n\nProvide action JSON.",
-                    })
+                # ── Get action from LLM ─────────────────
+                obs_text = format_observation(obs_dict)
+                messages.append({
+                    "role": "user",
+                    "content": f"Current state:\n{obs_text}\n\nProvide action JSON.",
+                })
 
-                    try:
-                        completion = llm_client.chat.completions.create(
-                            model=MODEL_NAME,
-                            messages=messages,
-                            temperature=TEMPERATURE,
-                            max_tokens=MAX_TOKENS,
-                            stream=False,
-                        )
-                        reply = (completion.choices[0].message.content or "").strip()
-                        messages.append({"role": "assistant", "content": reply})
-                        action_dict = parse_action_json(reply)
-                    except Exception as exc:
-                        last_error = str(exc)
-                        # Remove unanswered user message
-                        if messages[-1]["role"] == "user":
-                            messages.pop()
-
-                # Fallback to PID
-                if action_dict is None:
-                    action_dict = pid_action(obs_dict)
-
-                # ── Execute step ────────────────────────
                 try:
-                    action = Action.model_validate(action_dict)
-                    result = await env.step(action)
+                    reply = call_llm(llm_client, messages)
+                    messages.append({"role": "assistant", "content": reply})
+                    action_dict = parse_action_json(reply)
                 except Exception as exc:
                     last_error = str(exc)
-                    # Emergency PID retry
-                    action_dict = pid_action(obs_dict)
-                    action = Action.model_validate(action_dict)
-                    result = await env.step(action)
+                    # Remove unanswered user message
+                    if messages[-1]["role"] == "user":
+                        messages.pop()
+                    # Re-raise — we do NOT fall back to PID
+                    raise
+
+                # ── Execute step ────────────────────────
+                action = Action.model_validate(action_dict)
+                result = await env.step(action)
 
                 obs_dict = result.observation.model_dump() if hasattr(result.observation, 'model_dump') else {}
                 reward = result.reward if result.reward is not None else 0.0
