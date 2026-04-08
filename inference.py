@@ -58,24 +58,30 @@ TASK_MAX_STEPS = {
 }
 
 SYSTEM_PROMPT = textwrap.dedent("""\
-You are an expert data center cooling controller.
+You are an expert data center CRAC (Computer Room Air Conditioning) controller.
 
-You control HVAC/CRAC units to minimise energy (PUE) while keeping
-all server rack zones within safe temperature bounds (18–27°C).
+PHYSICS:
+- Zones heat up from IT power and ambient temperature (often 35°C).
+- CRAC units cool zones. Cooling power depends on fan_speed and chilled_water_flow.
+- Effective cooling h_eff = 150 × (0.6 × fan_speed + 0.4 × water_flow) W/°C.
+- Temperature change: dT = dt × (Q_IT/C_zone − h_eff × (T_zone − T_supply)/C_zone).
+- With C_zone=50000 J/°C, dt=60s, Q_IT=10000W, you MUST provide strong cooling to
+  prevent temperature from rising above 35°C (CRITICAL — episode terminates!).
 
-Each step you receive zone temperatures, CRAC settings, PUE, and ambient temp.
+SAFE RANGE: 18–27°C. CRITICAL LIMIT: 35°C (episode ends immediately!).
+
+KEY INSIGHT: Start with AGGRESSIVE cooling (fan=0.8+, water=0.8+, supply=12°C),
+then GRADUALLY reduce once temperature stabilises in the 20-24°C range to save energy.
+A PUE close to 1.0 is ideal but SAFETY is more important than energy savings.
 
 Respond with ONLY a JSON object (no markdown, no explanation):
-{
-  "cracs": [
-    {"fan_speed": 0.1-1.0, "chilled_water_flow": 0.1-1.0, "supply_temp": 10.0-20.0}
-  ]
-}
+{"cracs": [{"fan_speed": 0.1-1.0, "chilled_water_flow": 0.1-1.0, "supply_temp": 10.0-20.0}]}
 
-Strategy:
-- If any zone > 25°C: increase fan_speed and chilled_water_flow, lower supply_temp
-- If all zones < 22°C: reduce cooling to save energy
-- Make gradual adjustments to avoid oscillation
+Strategy priority:
+1. SAFETY FIRST: If any zone > 24°C, maximize cooling (fan=1.0, water=1.0, supply=10.0)
+2. EFFICIENCY: If all zones 20-23°C, SLOWLY reduce fan/water by 0.05 per step
+3. NEVER let zones exceed 27°C. Better to waste energy than to overheat.
+4. Supply temp of 10-13°C is aggressive but safe. 18-20°C is risky with high IT loads.
 """).strip()
 
 
@@ -356,14 +362,16 @@ async def run_episode(task_id: str) -> dict:
                     last_error = str(exc)
                     if messages and messages[-1].get("role") == "user":
                         messages.pop()
-                    # Fallback to a safe action to keep the episode running
+                    # Fallback to MAX COOLING action to keep the episode alive
+                    num_cracs = len(obs_dict.get('cracs', [{}]))
                     action_dict = Action(
                         cracs=[
                             CRACAction(
-                                fan_speed=0.5,
-                                chilled_water_flow=0.5,
-                                supply_temp=15.0,
+                                fan_speed=1.0,
+                                chilled_water_flow=1.0,
+                                supply_temp=10.0,
                             )
+                            for _ in range(max(1, num_cracs))
                         ]
                     ).model_dump()
 
