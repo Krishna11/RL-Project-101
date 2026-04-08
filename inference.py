@@ -256,6 +256,11 @@ async def run_episode(task_id: str) -> dict:
 
     print(f"[DEBUG] Started inference worker for task {task_id}. LLM Client configured against base_url={os.environ.get('API_BASE_URL')}", flush=True)
 
+    if "localhost" in os.environ.get("API_BASE_URL", "") or "127.0.0.1" in os.environ.get("API_BASE_URL", ""):
+        print("\n[FATAL] Localhost API_BASE_URL detected! The hackathon grader will record 0 proxy calls.")
+        print("Please configure API_BASE_URL, API_KEY, and MODEL_NAME inside your Hugging Face Space settings!")
+        sys.exit(1)
+
     # ── Probe Call (Guarantee at least one proxy request) ──
     try:
         print("[DEBUG] Sending minimal probe request to LLM...", flush=True)
