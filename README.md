@@ -127,7 +127,7 @@ The `inference.py` script connects to this API, calls `/reset` to start an episo
 5. Logs the result in the mandatory `[STEP]` format
 6. Repeats until `done=true`
 
-If no `HF_TOKEN` is set, a deterministic PID fallback controller takes over.
+The LLM is called with automatic retries (3 attempts with exponential backoff) to ensure reliable operation.
 
 ---
 
@@ -137,15 +137,13 @@ If no `HF_TOKEN` is set, a deterministic PID fallback controller takes over.
 ┌──────────────────────────────────────────────────────────┐
 │                    inference.py (Agent)                  │
 │                                                          │
-│  ┌─────────────────┐        ┌──────────────────────┐    │
-│  │   LLM Client    │        │   PID Fallback       │    │
-│  │ (OpenAI SDK →   │        │   Controller         │    │
-│  │  HF Router →    │        │  (no token needed)   │    │
-│  │  Qwen 72B)      │        └──────────────────────┘    │
-│  └────────┬────────┘                  │                  │
-│           │ JSON action               │                  │
-│           └──────────────┬────────────┘                  │
-│                          ▼                               │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │   LLM Client (OpenAI SDK → HF Router → Qwen)   │    │
+│  │   • 3 retries with exponential backoff          │    │
+│  │   • Uses API_BASE_URL + API_KEY from env        │    │
+│  └────────────────────┬────────────────────────────┘    │
+│                       │ JSON action                      │
+│                       ▼                                  │
 │              ┌─────────────────────┐                     │
 │              │   CoolPilotEnv      │                     │
 │              │  (openenv client)   │                     │
