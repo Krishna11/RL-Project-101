@@ -9,53 +9,124 @@ license: bsd-3-clause
 app_port: 7860
 ---
 
-# 🧊 CoolPilot — Data Center Cooling RL Environment
+<div align="center">
 
-> **Meta × SST OpenEnv Hackathon 2026**  
-> An OpenEnv-compliant Reinforcement Learning environment where an AI agent learns to optimally control data center HVAC/CRAC units to minimize energy consumption while maintaining safe server temperatures.
+# 🧊 CoolPilot
 
----
+### Intelligent Data Center Cooling with Reinforcement Learning
 
-## 💡 The Idea
+[![Python](https://img.shields.io/badge/Python-≥3.10-3776AB?logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://docker.com)
+[![License](https://img.shields.io/badge/License-BSD_3--Clause-orange)](LICENSE)
+[![HF Space](https://img.shields.io/badge/🤗_Live_Demo-heykunal123/coolpilot-yellow)](https://huggingface.co/spaces/heykunal123/coolpilot)
 
-Data centers are among the world's largest electricity consumers. A significant portion of that energy — often **30–40%** — goes purely into **cooling** the servers, not computation. Even a small improvement in cooling efficiency translates into massive real-world energy savings and reduced carbon emissions.
+**Meta × Scaler School of Technology · OpenEnv Hackathon 2026**
 
-The idea behind CoolPilot is simple: **can a Reinforcement Learning agent learn to control a data center's cooling systems better than static, rule-based controllers?**
+*An OpenEnv-compliant RL environment where an AI agent learns to optimally control data center HVAC/CRAC units — minimizing energy consumption while keeping servers at safe temperatures.*
 
-The agent is placed in a simulated data center and must learn, purely from trial and error (reward signals), how to adjust:
-- **Fan speed** of CRAC units
-- **Chilled water flow rate**
-- **Supply air temperature setpoints**
+[Live API](https://heykunal123-coolpilot.hf.space) · [API Docs](https://heykunal123-coolpilot.hf.space/docs) · [GitHub](https://github.com/Krishna11/RL-Project-101)
 
-...to keep all server racks within the ASHRAE safe range (18°C–27°C) while simultaneously minimizing the Power Usage Effectiveness (PUE) — the core metric of data center energy efficiency.
-
-A PUE of **1.0** is a perfectly efficient facility (all power goes to computation). Real-world data centers typically operate between 1.2–2.0. CoolPilot trains agents to push it as low as possible.
+</div>
 
 ---
 
-## 📖 Research Reference
+## 📋 Table of Contents
 
-This project is directly inspired by **DeepMind's groundbreaking 2016 work** on applying deep reinforcement learning to Google's data center cooling systems:
-
-> **"Cooling a Data Center with Deep Reinforcement Learning"**  
-> DeepMind / Google Brain (2016)  
-> Result: **~40% reduction** in cooling energy, **~15% overall PUE improvement**  
-> 🔗 [Read the DeepMind Blog Post](https://deepmind.google/discover/blog/deepmind-ai-reduces-google-data-centre-cooling-bill-by-40/)
-
-Our environment reimplements the core thermodynamic principles from that research as an open, hackathon-friendly Gymnasium-compatible simulation that any RL algorithm can interact with via a standard REST API.
+- [Overview](#-overview)
+- [Research Background](#-research-background)
+- [Architecture](#-architecture)
+- [Tech Stack](#-tech-stack)
+- [Core Concepts](#-core-concepts)
+- [API Reference](#-api-reference)
+- [Getting Started](#-getting-started)
+- [Deployment](#-deployment)
+- [Tasks & Scoring](#-tasks--scoring)
+- [Environment Variables](#-environment-variables)
+- [License](#-license)
 
 ---
 
-## ⚡ How It Helps Save Energy
+## 💡 Overview
 
-| Without RL | With CoolPilot RL Agent |
-|---|---|
-| Static settings — fans always at 80%, fixed supply temp | Dynamic control — adjusts every step based on real-time load |
-| Over-cooling wastes energy during low-load periods (nights) | Backs off cooling when servers are idle, saving power |
-| Cannot adapt to CRAC unit failures | Compensates automatically when a unit goes offline |
-| PUE typically 1.4–2.0 | Target PUE approaching 1.1–1.2 |
+Data centers consume **~1–2% of global electricity**, with **30–40%** going purely to cooling. Even marginal improvements in cooling efficiency translate to massive energy savings and reduced carbon emissions.
 
-Our reward function directly incentivizes **energy efficiency** (PUE score) while penalizing **safety violations** (temperatures above 35°C cause servers to shut down and terminate the episode). This forces the agent to find the optimal balance.
+**CoolPilot** asks a simple question: *Can an RL agent control a data center's cooling systems better than static, rule-based controllers?*
+
+The agent observes real-time sensor data and adjusts three parameters per CRAC unit:
+
+| Parameter | Range | Effect |
+|---|---|---|
+| **Fan Speed** | `0.1 – 1.0` | Airflow volume through the cooling unit |
+| **Chilled Water Flow** | `0.1 – 1.0` | Cooling capacity from the chiller plant |
+| **Supply Air Temp** | `10°C – 20°C` | Temperature of air pushed into the data hall |
+
+The goal: keep all server racks in the ASHRAE safe range (**18°C – 27°C**) while pushing the Power Usage Effectiveness (PUE) as close to **1.0** as possible.
+
+| Metric | Without RL | With CoolPilot |
+|---|---|---|
+| Fan settings | Static 80% | Dynamic per-step adjustment |
+| Low-load behavior | Over-cools, wastes energy | Backs off automatically |
+| CRAC failure response | None | Compensates in real time |
+| Typical PUE | 1.4 – 2.0 | Target 1.1 – 1.2 |
+
+---
+
+## 📖 Research Background
+
+This project is inspired by **DeepMind's 2016 work** applying deep RL to Google's data center cooling:
+
+> *"DeepMind AI Reduces Google Data Centre Cooling Bill by 40%"*
+> — DeepMind / Google Brain (2016)
+> Result: **~40% reduction** in cooling energy, **~15% PUE improvement**
+> 🔗 [Read the blog post](https://deepmind.google/discover/blog/deepmind-ai-reduces-google-data-centre-cooling-bill-by-40/)
+
+CoolPilot reimplements the core thermodynamic principles as an open, hackathon-friendly Gymnasium-compatible simulation accessible via a standard REST API.
+
+---
+
+## 🏗 Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     inference.py (Agent)                      │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │  LLM Client (OpenAI SDK → Hackathon Proxy → Qwen)   │    │
+│  │  • Reads API_BASE_URL + API_KEY from os.environ      │    │
+│  │  • 3 retries with exponential backoff                │    │
+│  └───────────────────────┬──────────────────────────────┘    │
+│                          │ JSON action                        │
+│                          ▼                                    │
+│               ┌────────────────────┐                          │
+│               │  CoolPilotEnv      │                          │
+│               │  (OpenEnv client)  │                          │
+│               └─────────┬──────────┘                          │
+└─────────────────────────│────────────────────────────────────┘
+                          │ HTTP (POST /reset, POST /step)
+                          ▼
+┌──────────────────────────────────────────────────────────────┐
+│               FastAPI Server (port 7860)                      │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │              CoolPilotEnvironment                     │    │
+│  │                                                       │    │
+│  │  ┌───────────────┐      ┌──────────────────────┐    │    │
+│  │  │ ThermalModel  │      │  Task Definitions     │    │    │
+│  │  │ Newton's Law  │      │  task_1: 1 zone       │    │    │
+│  │  │ of Cooling    │      │  task_2: 4 zones      │    │    │
+│  │  └───────────────┘      │  task_3: 8 zones      │    │    │
+│  │                          └──────────────────────┘    │    │
+│  │  ┌───────────────┐      ┌──────────────────────┐    │    │
+│  │  │ RewardEngine  │      │  Pydantic Models      │    │    │
+│  │  │ Safety 40%    │      │  Action / Observation │    │    │
+│  │  │ Energy 40%    │      │  (type-safe I/O)      │    │    │
+│  │  │ Stability 20% │      └──────────────────────┘    │    │
+│  │  └───────────────┘                                   │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                Docker Container · HF Spaces                   │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -63,172 +134,139 @@ Our reward function directly incentivizes **energy efficiency** (PUE score) whil
 
 | Component | Technology | Version |
 |---|---|---|
-| **Language** | Python | `≥ 3.10` |
-| **RL Environment API** | OpenEnv Core | `≥ 0.2.2` |
-| **Web Server** | FastAPI + Uvicorn | `≥ 0.115.0` / `≥ 0.30.0` |
-| **Data Validation** | Pydantic | `≥ 2.0.0` |
-| **HTTP Client** | HTTPX | `≥ 0.27.0` |
-| **WebSocket Client** | websockets | `≥ 15.0.1` |
-| **LLM Inference** | OpenAI SDK (HF Router) | `≥ 1.50.0` |
-| **LLM Model** | Qwen/Qwen2.5-72B-Instruct | via HF Inference Router |
-| **Containerization** | Docker | `python:3.11-slim` base |
-| **Deployment** | Hugging Face Spaces | Docker SDK, port 7860 |
-| **Testing** | Pytest + pytest-asyncio | `≥ 8.0.0` / `≥ 0.21` |
-| **Build System** | setuptools | `≥ 45` |
+| Language | Python | `≥ 3.10` |
+| RL Environment API | OpenEnv Core | `≥ 0.2.2` |
+| Web Framework | FastAPI + Uvicorn | `≥ 0.115.0` / `≥ 0.30.0` |
+| Data Validation | Pydantic | `≥ 2.0.0` |
+| HTTP Client | HTTPX | `≥ 0.27.0` |
+| WebSocket Client | websockets | `≥ 15.0.1` |
+| LLM Inference | OpenAI SDK | `≥ 1.50.0` |
+| LLM Model | Qwen/Qwen2.5-72B-Instruct | via HF Inference Router |
+| Containerization | Docker | `python:3.11-slim` |
+| Deployment | Hugging Face Spaces | Docker SDK, port 7860 |
+| Testing | Pytest + pytest-asyncio | `≥ 8.0.0` / `≥ 0.21` |
 
 ---
 
 ## 🧠 Core Concepts
 
 ### Power Usage Effectiveness (PUE)
+
 ```
 PUE = Total Facility Power / IT Equipment Power
 ```
-A PUE of 1.0 is ideal. Cooling power is the primary driver of PUE above 1.0. Our reward signal penalizes high PUE directly.
 
-### Newton's Law of Cooling (Thermal Model)
-Each server zone's temperature is simulated using:
-```
-dT/dt = (Q_it - Q_cooling) / (m * c)
-```
-Where `Q_it` is the heat generated by IT workloads, `Q_cooling` is the heat removed by CRAC units, `m` is the thermal mass, and `c` is the specific heat capacity.
+A PUE of **1.0** is ideal (all power goes to computation). Cooling is the primary driver above 1.0. Our reward signal directly penalizes high PUE.
 
-### CRAC Unit Model
-Each Computer Room Air Conditioning (CRAC) unit's cooling power is a function of three controllable parameters:
+### Thermal Model (Newton's Law of Cooling)
+
+Each zone's temperature evolves according to:
+
 ```
-Q_cooling = f(fan_speed, chilled_water_flow, supply_temp)
+dT/dt = (Q_it - Q_cooling) / (m × c)
 ```
+
+| Symbol | Meaning |
+|---|---|
+| `Q_it` | Heat generated by IT workloads (W) |
+| `Q_cooling` | Heat removed by CRAC units (W) |
+| `m` | Thermal mass of the zone (kg) |
+| `c` | Specific heat capacity (J/kg·K) |
 
 ### Reward Function
-The reward at each step is a composite score in `[0.0, 1.0]`:
-- **Safety Score (40%)** — All zones between 18°C–27°C = 1.0, degrades near boundaries
-- **Energy Score (40%)** — PUE close to 1.0 = 1.0, degrades as PUE rises
-- **Stability Score (20%)** — Penalizes rapid temperature oscillations
+
+Each step returns a composite reward in `[0.0, 1.0]`:
+
+| Component | Weight | Description |
+|---|---|---|
+| **Safety** | 40% | All zones in 18–27°C → 1.0; degrades near boundaries |
+| **Energy** | 40% | PUE close to 1.0 → 1.0; degrades as PUE rises |
+| **Stability** | 20% | Penalizes rapid temperature oscillations |
 
 ---
 
-## ⚙️ How It Works
+## ⚙️ API Reference
 
-The environment exposes a simple **REST API** that any RL algorithm or LLM agent can call:
+The environment exposes a REST API compatible with the OpenEnv standard:
 
-```
-POST /reset   → Start a new episode, returns initial observation
-POST /step    → Send an action, returns next observation + reward
-GET  /state   → Get current episode metadata
-GET  /health  → Liveness check for the container
-GET  /docs    → Interactive Swagger UI
-```
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/reset` | Start a new episode, returns initial observation |
+| `POST` | `/step` | Send an action, returns observation + reward |
+| `GET` | `/state` | Current episode metadata |
+| `GET` | `/health` | Container liveness check |
+| `GET` | `/docs` | Interactive Swagger UI |
 
-The `inference.py` script connects to this API, calls `/reset` to start an episode, then loops:
-1. Formats the observation (temperatures, PUE, CRAC states) into a text prompt
-2. Sends it to the LLM (Qwen 72B via HF Router)
-3. Parses the JSON action from the LLM response
-4. Calls `/step` with the action
-5. Logs the result in the mandatory `[STEP]` format
-6. Repeats until `done=true`
-
-The LLM is called with automatic retries (3 attempts with exponential backoff) to ensure reliable operation.
-
----
-
-## 🏗 Low-Level Architecture
+### Inference Flow
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    inference.py (Agent)                  │
-│                                                          │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │   LLM Client (OpenAI SDK → HF Router → Qwen)   │    │
-│  │   • 3 retries with exponential backoff          │    │
-│  │   • Uses API_BASE_URL + API_KEY from env        │    │
-│  └────────────────────┬────────────────────────────┘    │
-│                       │ JSON action                      │
-│                       ▼                                  │
-│              ┌─────────────────────┐                     │
-│              │   CoolPilotEnv      │                     │
-│              │  (openenv client)   │                     │
-│              └──────────┬──────────┘                     │
-└─────────────────────────│────────────────────────────────┘
-                          │ HTTP REST (POST /reset, /step)
-                          ▼
-┌──────────────────────────────────────────────────────────┐
-│              FastAPI Server (port 7860)                  │
-│                                                          │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │           CoolPilotEnvironment                  │    │
-│  │                                                 │    │
-│  │  ┌──────────────┐    ┌────────────────────┐    │    │
-│  │  │ ThermalModel │    │   Task Definitions  │    │    │
-│  │  │              │    │  task_1: 1 zone     │    │    │
-│  │  │ Newton's Law │    │  task_2: 4 zones    │    │    │
-│  │  │ of Cooling   │    │  task_3: 8 zones    │    │    │
-│  │  │              │    │  (random failures)  │    │    │
-│  │  └──────────────┘    └────────────────────┘    │    │
-│  │                                                 │    │
-│  │  ┌──────────────┐    ┌────────────────────┐    │    │
-│  │  │ RewardEngine │    │   Pydantic Models  │    │    │
-│  │  │ Safety+Energy│    │  Action/Observation │    │    │
-│  │  │ +Stability   │    │  (type-safe I/O)   │    │    │
-│  │  └──────────────┘    └────────────────────┘    │    │
-│  └─────────────────────────────────────────────────┘    │
-│                   Docker Container                       │
-│                  Hugging Face Spaces                     │
-└──────────────────────────────────────────────────────────┘
+1. POST /reset  →  Get initial observation
+2. Format observation as text prompt
+3. Send to LLM (Qwen 72B via hackathon proxy)
+4. Parse JSON action from LLM response
+5. POST /step with action  →  Get reward + next observation
+6. Log [STEP] to stdout
+7. Repeat until done=true
+```
+
+The LLM client uses `os.environ["API_BASE_URL"]` and `os.environ["API_KEY"]` directly, with 3 automatic retries and exponential backoff.
+
+### Mandatory Stdout Format
+
+```
+[START] task=<task_name> env=coolpilot model=<model_name>
+[STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
+[END]   success=<true|false> steps=<n> score=<0.00> rewards=<r1,r2,...,rn>
 ```
 
 ---
 
-## 🚀 Run Locally
+## 🚀 Getting Started
 
-**Requirements:** Python ≥ 3.10, Git
+### Prerequisites
 
-**1. Clone:**
+- Python ≥ 3.10
+- Git
+
+### Installation
+
 ```bash
+# Clone
 git clone https://github.com/Krishna11/RL-Project-101.git
 cd RL-Project-101
-```
 
-**2. Create virtual environment:**
-```powershell
-# Windows
+# Virtual environment
 python -m venv .venv
-.venv\Scripts\Activate.ps1
+source .venv/bin/activate        # Linux/Mac
+# .venv\Scripts\Activate.ps1     # Windows
 
-# Mac / Linux
-python -m venv .venv
-source .venv/bin/activate
-```
-
-**3. Install dependencies:**
-```bash
+# Install
 pip install -e ".[dev]"
 ```
 
-**4. Run tests (should see 73 passed):**
+### Run Tests
+
 ```bash
 pytest tests/ -v
+# Expected: 73 passed ✓
 ```
 
-**5. Start the environment server (Terminal 1):**
+### Run Locally
+
+**Terminal 1 — Start the environment server:**
 ```bash
 uvicorn coolpilot.server.app:app --port 7860
 ```
 
-**6. Run the AI agent (Terminal 2):**
-```powershell
-# Windows
-$env:ENV_BASE_URL = "http://localhost:7860"
-$env:HF_TOKEN     = "your_hf_token"        # optional — uses PID fallback if omitted
-python inference.py
-```
+**Terminal 2 — Run the AI agent:**
 ```bash
-# Mac / Linux
+export API_BASE_URL="https://router.huggingface.co/v1"
+export API_KEY="your_hf_token"
 export ENV_BASE_URL="http://localhost:7860"
-export HF_TOKEN="your_hf_token"
 python inference.py
 ```
 
-You will see the mandatory log stream:
+**Expected output:**
 ```
 [START] task=task_1_single_zone env=coolpilot model=Qwen/Qwen2.5-72B-Instruct
 [STEP]  step=1 action=fan=0.55,water=0.52,supply=14.8 reward=0.72 done=false error=null
@@ -238,40 +276,64 @@ You will see the mandatory log stream:
 
 ---
 
-## ☁️ Deployment (Hugging Face Spaces)
+## ☁️ Deployment
 
-The project is containerized via `Dockerfile` and deployed to Hugging Face Spaces using the Docker SDK.
+The project is containerized and deployed to **Hugging Face Spaces** using the Docker SDK.
 
-**Live URL:** `https://huggingface.co/spaces/heykunal123/coolpilot`  
-**API Base URL:** `https://heykunal123-coolpilot.hf.space`  
-**Interactive API Docs:** `https://heykunal123-coolpilot.hf.space/docs`
+| | URL |
+|---|---|
+| **HF Space** | https://huggingface.co/spaces/heykunal123/coolpilot |
+| **API Base** | https://heykunal123-coolpilot.hf.space |
+| **Swagger Docs** | https://heykunal123-coolpilot.hf.space/docs |
 
-To run your agent against the deployed environment:
+### Run Against Deployed Environment
+
 ```bash
 export ENV_BASE_URL="https://heykunal123-coolpilot.hf.space"
-export HF_TOKEN="your_hf_token"
+export API_KEY="your_hf_token"
 python inference.py
 ```
 
-**Key Docker decisions:**
-- Runs as non-root user (`appuser`, UID 1000) — required by HF Spaces security policy
-- Uses port `7860` — the only port exposed by HF Spaces
-- `PYTHONUNBUFFERED=1` ensures real-time log streaming for the grader
+### Docker Configuration
+
+| Decision | Rationale |
+|---|---|
+| Non-root user (`appuser`, UID 1000) | Required by HF Spaces security policy |
+| Port `7860` | Only port exposed by HF Spaces |
+| `PYTHONUNBUFFERED=1` | Enables real-time log streaming for the grader |
 
 ---
 
-## 🏆 Tasks & Baseline Scores
+## 🏆 Tasks & Scoring
 
-| Task | Difficulty | Zones | CRACs | Description |
+| Task ID | Difficulty | Zones | CRACs | Description |
 |---|---|---|---|---|
-| `task_1_single_zone` | Easy | 1 | 1 | Constant 10kW IT load, find steady-state optima |
-| `task_2_variable_workload` | Medium | 4 | 2 | Sinusoidal workloads, fluctuating ambient temp |
-| `task_3_random_events` | Hard | 8 | 3 | Random spikes, CRAC failures, time-of-use pricing |
+| `task_1_single_zone` | 🟢 Easy | 1 | 1 | Constant 10kW IT load, find steady-state optima |
+| `task_2_variable_workload` | 🟡 Medium | 4 | 2 | Sinusoidal workloads, fluctuating ambient temp |
+| `task_3_random_events` | 🔴 Hard | 8 | 3 | Random spikes, CRAC failures, time-of-use pricing |
 
-Baseline scores using Qwen2.5-72B-Instruct zero-shot / PID fallback:
-- Task 1: **0.35** | Task 2: **0.28** | Task 3: **0.15**
+### Baseline Scores (Qwen2.5-72B-Instruct, zero-shot)
 
-*(Scores out of 1.0 — an RL-trained agent using `openenv-core` can significantly improve on these)*
+| Task | Score |
+|---|---|
+| Task 1 | **0.35** |
+| Task 2 | **0.28** |
+| Task 3 | **0.15** |
+
+*Scores are out of 1.0 — an RL-trained agent can significantly improve on these baselines.*
+
+---
+
+## 🔧 Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `API_BASE_URL` | ✅ | `https://router.huggingface.co/v1` | LLM proxy endpoint (injected by evaluator) |
+| `API_KEY` | ✅ | from `HF_TOKEN` | API key for the LLM proxy (injected by evaluator) |
+| `MODEL_NAME` | ❌ | `Qwen/Qwen2.5-72B-Instruct` | LLM model identifier |
+| `ENV_BASE_URL` | ❌ | `http://localhost:7860` | CoolPilot environment server URL |
+| `TASK_ID` | ❌ | `task_1_single_zone` | Task to run |
+| `HF_TOKEN` | ❌ | — | Fallback for `API_KEY` if not set |
 
 ---
 
@@ -297,3 +359,9 @@ are permitted provided that the following conditions are met:
    be used to endorse or promote products derived from this software without
    specific prior written permission.
 ```
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ for the Meta × SST OpenEnv Hackathon 2026</sub>
+</div>
