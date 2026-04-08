@@ -32,10 +32,11 @@ from coolpilot import CoolPilotEnv, Action, CRACAction
 
 # ── Config ──────────────────────────────────────────────
 
-API_BASE_URL = os.environ.get("API_BASE_URL", "")
-API_KEY = os.environ.get("API_KEY", "")
-MODEL_NAME = os.environ.get("MODEL_NAME", "")
-HF_TOKEN = os.environ.get("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
+HF_TOKEN = os.getenv("HF_TOKEN")
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
 
 # Optional - if you use from_docker_image():
 LOCAL_IMAGE_NAME = os.environ.get("LOCAL_IMAGE_NAME")
@@ -102,11 +103,10 @@ def log_step(
 def log_end(
     success: bool,
     steps: int,
-    score: float,
     rewards: List[float],
 ) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
+    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
 
 
 # ─────────────────────────────────────────────────────────
@@ -216,7 +216,7 @@ def call_llm(llm_client: OpenAI, messages: list, model_name: str) -> str:
             return reply
         except Exception as exc:
             last_exc = exc
-            print(f"[WARN] LLM attempt {attempt}/{LLM_RETRIES} failed: {exc}", flush=True)
+            print(f"[WARN] LLM attempt {attempt}/{LLM_RETRIES} failed: {exc}", file=sys.stderr, flush=True)
             if attempt < LLM_RETRIES:
                 time.sleep(2 * attempt)  # exponential backoff
     raise last_exc  # all retries exhausted
@@ -236,8 +236,7 @@ async def run_episode(task_id: str) -> dict:
     start_time = time.monotonic()
 
     api_base_url = API_BASE_URL
-    api_key = API_KEY
-    model_name = os.environ["MODEL_NAME"]
+    model_name = MODEL_NAME
     env_base_url = ENV_BASE_URL
     hf_token = HF_TOKEN
 
@@ -250,28 +249,28 @@ async def run_episode(task_id: str) -> dict:
     log_start(task=task_id, env=BENCHMARK, model=model_name)
 
     llm_client = OpenAI(
-        base_url=os.environ["API_BASE_URL"],
-        api_key=os.environ["API_KEY"]
+        base_url=API_BASE_URL,
+        api_key=HF_TOKEN
     )
 
-    print(f"[DEBUG] Started inference worker for task {task_id}. LLM Client configured against base_url={os.environ.get('API_BASE_URL')}", flush=True)
+    print(f"[DEBUG] Started inference worker for task {task_id}. LLM Client configured against base_url={API_BASE_URL}", file=sys.stderr, flush=True)
 
-    if "localhost" in os.environ.get("API_BASE_URL", "") or "127.0.0.1" in os.environ.get("API_BASE_URL", ""):
-        print("\n[FATAL] Localhost API_BASE_URL detected! The hackathon grader will record 0 proxy calls.")
-        print("Please configure API_BASE_URL, API_KEY, and MODEL_NAME inside your Hugging Face Space settings!")
+    if "localhost" in API_BASE_URL or "127.0.0.1" in API_BASE_URL:
+        print("\n[FATAL] Localhost API_BASE_URL detected! The hackathon grader will record 0 proxy calls.", file=sys.stderr)
+        print("Please configure API_BASE_URL, HF_TOKEN, and MODEL_NAME inside your Hugging Face Space settings!", file=sys.stderr)
         sys.exit(1)
 
     # ── Probe Call (Guarantee at least one proxy request) ──
     try:
-        print("[DEBUG] Sending minimal probe request to LLM...", flush=True)
+        print("[DEBUG] Sending minimal probe request to LLM...", file=sys.stderr, flush=True)
         llm_client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": "hello"}],
             max_tokens=1
         )
-        print("[DEBUG] Probe successful. LLM endpoint is reachable.", flush=True)
+        print("[DEBUG] Probe successful. LLM endpoint is reachable.", file=sys.stderr, flush=True)
     except Exception as e:
-        print(f"[WARN] Probe call failed: {e}", flush=True)
+        print(f"[WARN] Probe call failed: {e}", file=sys.stderr, flush=True)
 
     # ── Connect to environment ──────────────────────────
     if LOCAL_IMAGE_NAME:
