@@ -24,14 +24,14 @@ training loops:
   ✔ Thread-safety for the sync wrapper
 
 Example (async — recommended):
-    >>> async with CoolPilotEnv(base_url="ws://localhost:7860") as env:
+    >>> async with CoolPilotEnv(base_url="<env_base_url>") as env:
     ...     result = await env.reset(task_id="task_1_single_zone")
     ...     print(result.observation.zones)  # [ZoneObservation(...)]
     ...     action = Action(cracs=[CRACAction(fan_speed=0.6, ...)])
     ...     result = await env.step(action)
 
 Example (sync wrapper):
-    >>> with CoolPilotEnv(base_url="http://localhost:7860").sync() as env:
+    >>> with CoolPilotEnv(base_url="<env_base_url>").sync() as env:
     ...     result = env.reset(task_id="task_1_single_zone")
     ...     result = env.step(action)
 
@@ -49,11 +49,13 @@ import asyncio
 import json
 import logging
 import math
+import os
 import time
 from typing import Any, Dict, Optional, Type
 
 from openenv.core.client_types import StateT, StepResult
 from openenv.core.env_client import EnvClient
+from websockets.asyncio.client import connect as ws_connect
 
 from .models import (
     Action,
@@ -193,6 +195,7 @@ class CoolPilotEnv(EnvClient[Action, Observation, State]):
         message_timeout_s: float = _DEFAULT_TIMEOUT_S,
         max_message_size_mb: float = 100.0,
         expected_crac_count: Optional[int] = None,
+        auth_token: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -208,6 +211,50 @@ class CoolPilotEnv(EnvClient[Action, Observation, State]):
         self._episode_step: int = 0
         self._episode_start_time: float = 0.0
         self._total_reward: float = 0.0
+        if auth_token:
+            self._ws_headers: Optional[Dict[str, str]] = {
+                "Authorization": f"Bearer {auth_token}",
+            }
+        else:
+            self._ws_headers = None
+
+    async def connect(self) -> "CoolPilotEnv":
+        """Establish WebSocket connection with optional auth headers."""
+        if self._ws is not None:
+            return self
+
+        ws_url_lower = self._ws_url.lower()
+        is_localhost = "localhost" in ws_url_lower or "127.0.0.1" in ws_url_lower
+
+        old_no_proxy = os.environ.get("NO_PROXY")
+        if is_localhost:
+            current_no_proxy = old_no_proxy or ""
+            if "localhost" not in current_no_proxy.lower():
+                os.environ["NO_PROXY"] = (
+                    f"{current_no_proxy},localhost,127.0.0.1"
+                    if current_no_proxy
+                    else "localhost,127.0.0.1"
+                )
+
+        try:
+            self._ws = await ws_connect(
+                self._ws_url,
+                open_timeout=self._connect_timeout,
+                max_size=self._max_message_size,
+                additional_headers=self._ws_headers,
+            )
+        except Exception as exc:
+            raise ConnectionError(
+                f"Failed to connect to {self._ws_url}: {exc}"
+            ) from exc
+        finally:
+            if is_localhost:
+                if old_no_proxy is None:
+                    os.environ.pop("NO_PROXY", None)
+                else:
+                    os.environ["NO_PROXY"] = old_no_proxy
+
+        return self
 
     # ── Properties ──────────────────────────────────────
 

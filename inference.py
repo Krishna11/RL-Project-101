@@ -10,7 +10,7 @@ MANDATORY STDOUT FORMAT:
 Environment Variables:
     API_BASE_URL   LLM endpoint (injected by hackathon evaluator)
     API_KEY        API key (injected by hackathon evaluator)
-    MODEL_NAME     Model identifier (default: Qwen/Qwen2.5-72B-Instruct)
+    MODEL_NAME     Model identifier (injected by hackathon evaluator)
     IMAGE_NAME     Docker image name for from_docker_image() (optional)
     TASK_ID        Task to run (default: task_1_single_zone)
 """
@@ -32,13 +32,16 @@ from coolpilot import CoolPilotEnv, Action, CRACAction
 
 # ── Config ──────────────────────────────────────────────
 
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+API_BASE_URL = os.environ.get("API_BASE_URL")
+API_KEY = os.environ.get("API_KEY")
+MODEL_NAME = os.environ.get("MODEL_NAME")
+HF_TOKEN = os.environ.get("HF_TOKEN")
 
 # Optional - if you use from_docker_image():
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+LOCAL_IMAGE_NAME = os.environ.get("LOCAL_IMAGE_NAME")
 
-ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
-TASK_ID = os.getenv("TASK_ID", "task_1_single_zone")
+ENV_BASE_URL = os.environ.get("ENV_BASE_URL", "http://127.0.0.1:7860")
+TASK_ID = os.environ.get("TASK_ID", "task_1_single_zone")
 BENCHMARK = "coolpilot"
 
 MAX_STEPS = 200          # safety cap
@@ -197,13 +200,13 @@ def action_to_short_str(action: dict) -> str:
 # LLM call with retries (NO PID fallback)
 # ─────────────────────────────────────────────────────────
 
-def call_llm(llm_client: OpenAI, messages: list) -> str:
+def call_llm(llm_client: OpenAI, messages: list, model_name: str) -> str:
     """Call the LLM with retries. Raises on total failure."""
     last_exc = None
     for attempt in range(1, LLM_RETRIES + 1):
         try:
             completion = llm_client.chat.completions.create(
-                model=MODEL_NAME,
+                model=model_name,
                 messages=messages,
                 temperature=TEMPERATURE,
                 max_tokens=MAX_TOKENS,
@@ -231,20 +234,12 @@ async def run_episode(task_id: str) -> dict:
     Returns a result dict with score in [0, 1].
     """
     start_time = time.monotonic()
-    
-    if "API_KEY" not in os.environ and "HF_TOKEN" in os.environ:
-        os.environ["API_KEY"] = os.environ["HF_TOKEN"]
-        
-    llm_client = OpenAI(
-        base_url=os.environ.get("API_BASE_URL"),
-        api_key=os.environ.get("API_KEY", "sk-no-key")
-    )
 
-    # ── Connect to environment ──────────────────────────
-    if LOCAL_IMAGE_NAME:
-        env = await CoolPilotEnv.from_docker_image(LOCAL_IMAGE_NAME)
-    else:
-        env = CoolPilotEnv(base_url=ENV_BASE_URL)
+    api_base_url = API_BASE_URL
+    api_key = API_KEY
+    model_name = MODEL_NAME
+    env_base_url = ENV_BASE_URL
+    hf_token = HF_TOKEN
 
     rewards: List[float] = []
     steps_taken = 0
@@ -252,7 +247,32 @@ async def run_episode(task_id: str) -> dict:
     success = False
     last_error: Optional[str] = None
 
-    log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
+    log_start(task=task_id, env=BENCHMARK, model=model_name or "")
+
+    if not api_base_url or not api_key or not model_name:
+        last_error = "Missing API_BASE_URL, API_KEY, or MODEL_NAME"
+        log_end(success=False, steps=0, score=0.0, rewards=[])
+        return {
+            "task_id": task_id,
+            "steps": 0,
+            "score": 0.0,
+            "success": False,
+            "rewards": [],
+        }
+
+    llm_client = OpenAI(
+        base_url=os.environ.get("API_BASE_URL"),
+        api_key=os.environ.get("API_KEY")
+    )
+
+    # ── Connect to environment ──────────────────────────
+    if LOCAL_IMAGE_NAME:
+        env = await CoolPilotEnv.from_docker_image(
+            LOCAL_IMAGE_NAME,
+            auth_token=hf_token,
+        )
+    else:
+        env = CoolPilotEnv(base_url=env_base_url, auth_token=hf_token)
 
     try:
         async with env:
@@ -276,7 +296,7 @@ async def run_episode(task_id: str) -> dict:
                 })
 
                 try:
-                    reply = call_llm(llm_client, messages)
+                    reply = call_llm(llm_client, messages, model_name)
                     messages.append({"role": "assistant", "content": reply})
                     action_dict = parse_action_json(reply)
                 except Exception as exc:
