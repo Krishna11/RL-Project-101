@@ -43,3 +43,18 @@ def grade_episode(
         "max_temp": round(episode_metrics.max_temp, 2),
         "thermal_violations": episode_metrics.thermal_violations,
     }
+
+
+def openenv_grader(stdout: str) -> float:
+    """
+    OpenEnv-spec compatible grader.
+    Parses the final output string to extract the episode score.
+    """
+    import re
+    match = re.search(r"\[END\].*?score=([0-9.]+)", stdout)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            pass
+    return 0.0
