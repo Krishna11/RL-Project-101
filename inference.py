@@ -413,7 +413,7 @@ async def run_episode(task_id: str) -> dict:
 
 async def main() -> None:
     """Run inference on the specified task (or all 3)."""
-    tasks = os.getenv("TASKS", TASK_ID).split(",")
+    tasks = os.getenv("TASKS", "task_1_single_zone,task_2_variable_workload,task_3_random_events").split(",")
 
     for task_id in tasks:
         task_id = task_id.strip()
