@@ -48,7 +48,7 @@ MAX_STEPS = 200          # safety cap
 TIME_BUDGET_S = 900.0    # 15 min
 TEMPERATURE = 0.2
 MAX_TOKENS = 512
-LLM_RETRIES = 5          # retry LLM calls on failure
+LLM_RETRIES = 2          # retry LLM calls on failure
 
 # Task-specific max steps for score normalization
 TASK_MAX_STEPS = {
@@ -297,17 +297,7 @@ async def run_episode(task_id: str) -> dict:
     # We removed the localhost guard check because the Phase 2 
     # evaluator injects a local LiteLLM proxy (e.g., http://localhost:4000)
 
-    # ── Probe Call (Guarantee at least one proxy request) ──
-    try:
-        print("[DEBUG] Sending minimal probe request to LLM...", file=sys.stderr, flush=True)
-        llm_client.chat.completions.create(
-            model=model_name,
-            messages=[{"role": "user", "content": "hello"}],
-            max_tokens=1
-        )
-        print("[DEBUG] Probe successful. LLM endpoint is reachable.", file=sys.stderr, flush=True)
-    except Exception as e:
-        print(f"[WARN] Probe call failed: {e}", file=sys.stderr, flush=True)
+    # Probe call removed to conserve hackathon proxy API limits
 
     # ── Connect to environment ──────────────────────────
     try:
