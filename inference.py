@@ -32,10 +32,12 @@ from coolpilot import CoolPilotEnv, Action, CRACAction
 
 # ── Config ──────────────────────────────────────────────
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN")
+if "API_BASE_URL" not in os.environ:
+    os.environ["API_BASE_URL"] = "https://router.huggingface.co/v1"
+if "API_KEY" not in os.environ:
+    os.environ["API_KEY"] = os.environ.get("HF_TOKEN", "dummy")
 
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 # Optional - if you use from_docker_image():
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
@@ -238,7 +240,10 @@ async def run_episode(task_id: str) -> dict:
     Returns a result dict with score in [0, 1].
     """
     start_time = time.monotonic()
-    llm_client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN or "dummy")
+    llm_client = OpenAI(
+        base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"]
+    )
 
     # ── Connect to environment ──────────────────────────
     if LOCAL_IMAGE_NAME:
