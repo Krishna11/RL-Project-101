@@ -30,7 +30,10 @@ RUN pip install --no-cache-dir .
 # Switch to non-root
 USER appuser
 
-# HF Spaces expects port 7860
-EXPOSE 7860
 
-CMD ["uvicorn", "coolpilot.server.app:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
+
+USER appuser
+EXPOSE 7860
+CMD ["./entrypoint.sh"]
