@@ -222,7 +222,7 @@ class CoolPilotEnv(EnvClient[Action, Observation, State]):
         """Establish HTTP connection with optional auth headers."""
         if not hasattr(self, "_http_client") or self._http_client is None:
             import httpx
-            http_base = self._base_url.replace("ws://", "http://").replace("wss://", "https://")
+            http_base = self._ws_url.replace("ws://", "http://").replace("wss://", "https://")
             self._http_client = httpx.AsyncClient(
                 base_url=http_base,
                 headers=self._ws_headers,
