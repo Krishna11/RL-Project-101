@@ -16,7 +16,7 @@ echo "Server is up!"
 # Run the inference agent
 export ENV_BASE_URL="http://127.0.0.1:7860"
 echo "Starting inference agent..."
-python inference.py
+python inference.py || echo "Inference script exited (normal for dummy LLM). Container staying alive..."
 
 # Keep the container alive by waiting for the server
 wait $SERVER_PID
