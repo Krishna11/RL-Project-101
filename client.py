@@ -223,6 +223,8 @@ class CoolPilotEnv(EnvClient[Action, Observation, State]):
         if not hasattr(self, "_http_client") or self._http_client is None:
             import httpx
             http_base = self._ws_url.replace("ws://", "http://").replace("wss://", "https://")
+            if http_base.endswith("/ws"):
+                http_base = http_base[:-3]
             self._http_client = httpx.AsyncClient(
                 base_url=http_base,
                 headers=self._ws_headers,
