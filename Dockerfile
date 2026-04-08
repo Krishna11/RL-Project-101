@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+# Install system dependencies including curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # Non-root user (HF Spaces requirement)
 RUN useradd -m -u 1000 appuser
 ENV HOME=/home/appuser
