@@ -13,16 +13,8 @@ ENV HF_HOME=/tmp/.cache/huggingface
 ENV PYTHONUNBUFFERED=1
 
 # Install deps first (layer caching)
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir \
-    "openenv-core[core]>=0.2.2" \
-    "fastapi>=0.115.0" \
-    "pydantic>=2.0.0" \
-    "uvicorn[standard]>=0.30.0" \
-    "httpx>=0.27.0" \
-    "websockets>=15.0.1" \
-    "openai>=1.50.0" \
-    "requests>=2.31.0"
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy full project
 COPY . .
@@ -37,5 +29,5 @@ USER appuser
 
 EXPOSE 7860
 
-# Run the script that starts both server and inference agent
-CMD ["./run.sh"]
+# Run the inference entrypoint via bash script to ensure web server starts
+CMD ["bash", "run.sh"]

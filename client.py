@@ -219,42 +219,22 @@ class CoolPilotEnv(EnvClient[Action, Observation, State]):
             self._ws_headers = None
 
     async def connect(self) -> "CoolPilotEnv":
-        """Establish WebSocket connection with optional auth headers."""
-        if self._ws is not None:
-            return self
-
-        ws_url_lower = self._ws_url.lower()
-        is_localhost = "localhost" in ws_url_lower or "127.0.0.1" in ws_url_lower
-
-        old_no_proxy = os.environ.get("NO_PROXY")
-        if is_localhost:
-            current_no_proxy = old_no_proxy or ""
-            if "localhost" not in current_no_proxy.lower():
-                os.environ["NO_PROXY"] = (
-                    f"{current_no_proxy},localhost,127.0.0.1"
-                    if current_no_proxy
-                    else "localhost,127.0.0.1"
-                )
-
-        try:
-            self._ws = await ws_connect(
-                self._ws_url,
-                open_timeout=self._connect_timeout,
-                max_size=self._max_message_size,
-                additional_headers=self._ws_headers,
+        """Establish HTTP connection with optional auth headers."""
+        if not hasattr(self, "_http_client") or self._http_client is None:
+            import httpx
+            http_base = self._base_url.replace("ws://", "http://").replace("wss://", "https://")
+            self._http_client = httpx.AsyncClient(
+                base_url=http_base,
+                headers=self._ws_headers,
+                timeout=self._message_timeout,
             )
-        except Exception as exc:
-            raise ConnectionError(
-                f"Failed to connect to {self._ws_url}: {exc}"
-            ) from exc
-        finally:
-            if is_localhost:
-                if old_no_proxy is None:
-                    os.environ.pop("NO_PROXY", None)
-                else:
-                    os.environ["NO_PROXY"] = old_no_proxy
-
         return self
+
+    async def close(self) -> None:
+        if hasattr(self, "_http_client") and self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
+        await super().close()
 
     # ── Properties ──────────────────────────────────────
 
@@ -427,7 +407,13 @@ class CoolPilotEnv(EnvClient[Action, Observation, State]):
         last_exc: Optional[Exception] = None
         for attempt in range(1, _MAX_RECONNECT_ATTEMPTS + 1):
             try:
-                result = await super().reset(**kwargs)
+                await self.connect()
+                payload = {"task_id": kwargs.get("task_id", "task_1_single_zone")}
+                if "seed" in kwargs:
+                    payload["seed"] = kwargs["seed"]
+                resp = await self._http_client.post("/reset", json=payload)
+                resp.raise_for_status()
+                result = self._parse_result(resp.json())
                 logger.info(
                     "Environment reset (attempt %d).  Task: %s  Zones: %d  CRACs: %d",
                     attempt,
@@ -486,22 +472,27 @@ class CoolPilotEnv(EnvClient[Action, Observation, State]):
                 "You must call reset() to begin an episode."
             )
 
-        # One automatic reconnect attempt on connection errors
         try:
-            result = await super().step(action, **kwargs)
-        except (ConnectionError, OSError) as exc:
+            await self.connect()
+            resp = await self._http_client.post("/step", json=self._step_payload(action))
+            resp.raise_for_status()
+            result = self._parse_result(resp.json())
+        except Exception as exc:
             logger.warning(
-                "WebSocket disconnected during step %d: %s.  Attempting reconnect…",
+                "HTTP request failed during step %d: %s.  Attempting retry…",
                 self._episode_step,
                 exc,
             )
-            self._ws = None
             try:
+                # Close old client and try one more time
+                await self.close()
                 await self.connect()
-                result = await super().step(action, **kwargs)
+                resp = await self._http_client.post("/step", json=self._step_payload(action))
+                resp.raise_for_status()
+                result = self._parse_result(resp.json())
             except Exception as reconnect_exc:
                 raise ConnectionError(
-                    f"Reconnect failed at step {self._episode_step}: {reconnect_exc}"
+                    f"Retry failed at step {self._episode_step}: {reconnect_exc}"
                 ) from exc
 
         # Update bookkeeping
@@ -531,7 +522,10 @@ class CoolPilotEnv(EnvClient[Action, Observation, State]):
           • Server unreachable → returns cached state if available.
         """
         try:
-            return await super().state()
+            await self.connect()
+            resp = await self._http_client.get("/state")
+            resp.raise_for_status()
+            return self._parse_state(resp.json())
         except (ConnectionError, OSError, asyncio.TimeoutError) as exc:
             if self._last_state is not None:
                 logger.warning(
