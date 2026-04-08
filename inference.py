@@ -32,11 +32,6 @@ from coolpilot import CoolPilotEnv, Action, CRACAction
 
 # ── Config ──────────────────────────────────────────────
 
-if "API_BASE_URL" not in os.environ:
-    os.environ["API_BASE_URL"] = "https://router.huggingface.co/v1"
-if "API_KEY" not in os.environ:
-    os.environ["API_KEY"] = os.environ.get("HF_TOKEN", "dummy")
-
 MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 # Optional - if you use from_docker_image():
