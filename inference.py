@@ -32,9 +32,9 @@ from coolpilot import CoolPilotEnv, Action, CRACAction
 
 # ── Config ──────────────────────────────────────────────
 
-API_BASE_URL = os.environ.get("API_BASE_URL")
-MODEL_NAME = os.environ.get("MODEL_NAME")
-API_KEY = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN")
+API_BASE_URL = os.environ["API_BASE_URL"]
+API_KEY = os.environ["API_KEY"]
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4.1-mini")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 # Optional - if you use from_docker_image():
@@ -294,23 +294,8 @@ async def run_episode(task_id: str) -> dict:
     print(f"[DEBUG] Started inference worker for task {task_id}. LLM Client configured against base_url={API_BASE_URL}", file=sys.stderr, flush=True)
     print(f"[DEBUG] API_KEY status: {masked_key} | MODEL: {model_name}", file=sys.stderr, flush=True)
 
-    if "localhost" in api_base_url or "127.0.0.1" in api_base_url:
-        print(
-            "\n[FATAL] Localhost API_BASE_URL detected! The hackathon grader will record 0 proxy calls.",
-            file=sys.stderr,
-        )
-        print(
-            "Please configure API_BASE_URL, API_KEY/HF_TOKEN, and MODEL_NAME inside your Hugging Face Space settings!",
-            file=sys.stderr,
-        )
-        log_end(success=False, steps=0, score=0.0, rewards=[])
-        return {
-            "task_id": task_id,
-            "steps": 0,
-            "score": 0.0,
-            "success": False,
-            "rewards": [],
-        }
+    # We removed the localhost guard check because the Phase 2 
+    # evaluator injects a local LiteLLM proxy (e.g., http://localhost:4000)
 
     # ── Probe Call (Guarantee at least one proxy request) ──
     try:
