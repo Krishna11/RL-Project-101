@@ -31,46 +31,46 @@ app_port: 7860
 
 ---
 
-## 📋 Table of Contents
 
-- [Overview](#-overview)
-- [Research Background](#-research-background)
-- [Architecture](#-architecture)
-- [Tech Stack](#-tech-stack)
-- [Core Concepts](#-core-concepts)
-- [API Reference](#-api-reference)
-- [Getting Started](#-getting-started)
-- [Deployment](#-deployment)
-- [Tasks & Scoring](#-tasks--scoring)
-- [Environment Variables](#-environment-variables)
-- [License](#-license)
+## 🚀 Overview
+
+Modern data centers consume **~1–2% of global electricity**, with **30–40% dedicated solely to cooling**. Even small efficiency gains can yield massive cost savings and carbon reductions.
+
+**CoolPilot** explores a powerful idea:
+
+> **Can a Reinforcement Learning agent outperform traditional rule-based cooling systems?**
+
+This project provides an **OpenEnv-compliant RL environment** where an AI agent learns to dynamically control HVAC/CRAC systems in real time.
 
 ---
 
-## 💡 Overview
+## 🎯 Objective
 
-Data centers consume **~1–2% of global electricity**, with **30–40%** going purely to cooling. Even marginal improvements in cooling efficiency translate to massive energy savings and reduced carbon emissions.
+The agent continuously observes system conditions and adjusts:
 
-**CoolPilot** asks a simple question: *Can an RL agent control a data center's cooling systems better than static, rule-based controllers?*
+| Parameter | Range | Role |
+|----------|------|------|
+| **Fan Speed** | `0.1 – 1.0` | Controls airflow volume |
+| **Chilled Water Flow** | `0.1 – 1.0` | Determines cooling capacity |
+| **Supply Air Temperature** | `10°C – 20°C` | Sets output air temperature |
 
-The agent observes real-time sensor data and adjusts three parameters per CRAC unit:
-
-| Parameter | Range | Effect |
-|---|---|---|
-| **Fan Speed** | `0.1 – 1.0` | Airflow volume through the cooling unit |
-| **Chilled Water Flow** | `0.1 – 1.0` | Cooling capacity from the chiller plant |
-| **Supply Air Temp** | `10°C – 20°C` | Temperature of air pushed into the data hall |
-
-The goal: keep all server racks in the ASHRAE safe range (**18°C – 27°C**) while pushing the Power Usage Effectiveness (PUE) as close to **1.0** as possible.
-
-| Metric | Without RL | With CoolPilot |
-|---|---|---|
-| Fan settings | Static 80% | Dynamic per-step adjustment |
-| Low-load behavior | Over-cools, wastes energy | Backs off automatically |
-| CRAC failure response | None | Compensates in real time |
-| Typical PUE | 1.4 – 2.0 | Target 1.1 – 1.2 |
+### Goal:
+- Maintain **safe server temperatures (18°C – 27°C)**  
+- Minimize **Power Usage Effectiveness (PUE → 1.0)**  
 
 ---
+
+## 📊 Why It Matters
+
+| Metric | Traditional Systems | CoolPilot |
+|-------|-------------------|----------|
+| Cooling Strategy | Static rules | Adaptive RL |
+| Low Load Handling | Overcooling | Energy-efficient |
+| Failure Response | None | Real-time compensation |
+| Typical PUE | 1.4 – 2.0 | **1.1 – 1.2 target** |
+
+---
+
 
 ## 📖 Research Background
 
