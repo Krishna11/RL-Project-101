@@ -1,13 +1,4 @@
----
-title: Coolpilot
-emoji: 🌖
-colorFrom: red
-colorTo: gray
-sdk: docker
-pinned: false
-license: bsd-3-clause
-app_port: 7860
----
+
 
 <div align="center">
 
