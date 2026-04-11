@@ -327,6 +327,4 @@ are permitted provided that the following conditions are met:
 
 ---
 
-<div align="center">
-  <sub>Built with ❤️ for the Meta × SST OpenEnv Hackathon 2026</sub>
-</div>
+
